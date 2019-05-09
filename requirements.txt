@@ -4,3 +4,4 @@ cs50
 flask_session
 werkzeug
 requests
+psycopg2
