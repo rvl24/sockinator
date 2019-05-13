@@ -6,10 +6,12 @@ from tempfile import mkdtemp
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from helpers import apology, login_required
+from helpers import apology, login_required, check
+
 
 # Configure application
 app = Flask(__name__)
+
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -32,14 +34,14 @@ Session(app)
 # Configure CS50 Library to use Heroku PostgreSQL database
 db = SQL("postgres://djguwhovfgmtjf:3b8fb50c286e296f59a503a6893348914c572b77073848d9835a94120818dd13@ec2-50-19-127-115.compute-1.amazonaws.com:5432/d4h7gvb1ahdvmu")
 
+@app.route("/check", methods=["GET"])
+def check_username():
+    check()
 
 @app.route("/")
-@login_required
 def index():
-    """Show sock drawer"""
-    
+    """Show main page"""
     return render_template("index.html")
-
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -53,20 +55,22 @@ def login():
 
         # Ensure username was submitted
         if not request.form.get("username"):
-            return apology("must provide username", 403)
+            flash("Username required", category='message')
+            return render_template("login.html")
 
         # Ensure password was submitted
         elif not request.form.get("password"):
-            return apology("must provide password", 403)
+            flash("Password required", category='message')
+            return render_template("login.html")
 
         # Query database for username
         rows = db.execute("SELECT * FROM users WHERE username = :username",
                           username=request.form.get("username"))
 
         # Ensure username exists and password is correct
-        if len(rows) != 1 or not check_password_hash(rows[0]["hash"], request.form.get("password")):
-            return apology("invalid username and/or password", 403)
-
+        if len(rows) != 1 or not check_password_hash(rows[0]["password_hash"], request.form.get("password")):
+            flash("Invalid username and/or password", category='message')
+            return render_template("login.html")
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
 
@@ -81,7 +85,6 @@ def login():
 @app.route("/logout")
 def logout():
     """Log user out"""
-
     # Forget any user_id
     session.clear()
 
@@ -92,44 +95,44 @@ def logout():
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """Register user"""
-    
-    if request.method == "POST":
-        if not request.form.get("username"):
-            return apology("Username required")
-            
-        # Look up username in database
-        status = db.execute("SELECT * FROM users WHERE username = :name", name=request.args.get("username"))
-        
-        # If username returned, return false, since username is not available
-        if len(status) > 0:
-            return apology("Username taken")
 
-        # Get password from form
-        password = request.form.get("password")
-        
-        # Check that password has been entered
-        if len(password) > 0:
-            
-            # check whether confirmation is the same as the original
-            confirmation = request.form.get("confirmation")
-            if password != confirmation:
-                return apology("Passwords do not match")
-            
-            # hash the password (method, salt length poached from werkzeug example)
-            password_hash = generate_password_hash(request.form.get("password"), 
-                                                   method='pbkdf2:sha256', salt_length=8)
-            
-            # store username, password hash in database                                       
-            db.execute("INSERT INTO users (username, hash) VALUES (:u, :p)", 
-                       u=request.form.get("username"), p=password_hash)
-            
-            # notify the user that they've been properly registered
-            flash("Registered!")
-            return redirect("/")
-        else: 
-            return apology("Please enter a password")
+    if request.method == "POST":
+        if not request.form.get("username") or not request.form.get("password"):
+            flash("Username and password required", category='message')
+            return render_template("/register")
+
+        # Check if username available
+        status = db.execute("SELECT * FROM users WHERE username = :name", name=request.args.get("username"))
+        if len(status) > 0:
+            flash("Username taken", category='message')
+            return render_template("/register")
+
+        # check whether confirmation is the same as the original
+        if request.form.get("password")!= request.form.get("confirmation"):
+            flash("Passwords do not match", category='message')
+            return render_template("/register")
+
+        # hash the password (method, salt length poached from werkzeug example)
+        password_hash = generate_password_hash(request.form.get("password"),
+                                               method='pbkdf2:sha256', salt_length=8)
+
+        # store username, password hash in database
+        db.execute("INSERT INTO users (username, password_hash) VALUES (:u, :p)",
+                   u=request.form.get("username"), p=password_hash)
+
+        # notify the user that they've been properly registered
+        flash("Registered!")
+        return redirect("/")
     else:
         return render_template("register.html")
+
+@app.route("/my_patterns", methods=["GET"])
+def show_patterns():
+    """Display saved patterns"""
+    if session.get("user_id") is None:
+        return render_template("my_patterns.html")
+    else:
+        return render_template("my_patterns_loggedin.html")
 
 
 def errorhandler(e):

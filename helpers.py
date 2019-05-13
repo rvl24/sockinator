@@ -24,3 +24,12 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+def check():
+    """Return true if username available, else false, in JSON format"""
+    status = db.execute("SELECT * FROM users WHERE username = :name", name=request.args.get("username"))
+
+    if len(status) > 0:
+        return jsonify(False)
+
+    else:
+        return jsonify(True)

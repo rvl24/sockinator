@@ -1,0 +1,17 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  <title>Pattern Builder</title>
+{% endblock %}
+
+{% block main %}
+<form class="form-signin" action="/login" method="post">
+    <div class="form-group">
+        <input autocomplete="off" autofocus class="form-control" name="foot_width" placeholder="Width of your foot" type="text">
+    </div>
+    <div class="form-group">
+        <input class="form-control" name="foot_length" placeholder="Length of your foot" type="text">
+    </div>
+    <button class="btn btn-primary" type="submit">Submit</button>
+</form>
+{% endblock %}
