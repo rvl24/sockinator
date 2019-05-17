@@ -5,13 +5,10 @@ from flask_session import Session
 from tempfile import mkdtemp
 from werkzeug.exceptions import default_exceptions, HTTPException, InternalServerError
 from werkzeug.security import check_password_hash, generate_password_hash
-
-from helpers import apology, login_required, check
-
+from jinja2 import Environment
 
 # Configure application
 app = Flask(__name__)
-
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -36,7 +33,7 @@ db = SQL("postgres://djguwhovfgmtjf:3b8fb50c286e296f59a503a6893348914c572b770738
 
 @app.route("/check", methods=["GET"])
 def check_username():
-    check()
+    return jsonify(check())
 
 @app.route("/")
 def index():
@@ -71,6 +68,7 @@ def login():
         if len(rows) != 1 or not check_password_hash(rows[0]["password_hash"], request.form.get("password")):
             flash("Invalid username and/or password", category='message')
             return render_template("login.html")
+
         # Remember which user has logged in
         session["user_id"] = rows[0]["id"]
 
@@ -85,17 +83,13 @@ def login():
 @app.route("/logout")
 def logout():
     """Log user out"""
-    # Forget any user_id
     session.clear()
-
-    # Redirect user to login form
     return redirect("/")
 
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
     """Register user"""
-
     if request.method == "POST":
         if not request.form.get("username") or not request.form.get("password"):
             flash("Username and password required", category='message')
@@ -126,22 +120,43 @@ def register():
     else:
         return render_template("register.html")
 
-@app.route("/my_patterns", methods=["GET"])
+@app.route("/my_patterns", methods=["GET", "POST"])
 def show_patterns():
     """Display saved patterns"""
-    if session.get("user_id") is None:
-        return render_template("my_patterns.html")
+    if session.get("user_id") is not None:
+        if request.method == "GET":
+            patterns = db.execute("SELECT * FROM patterns WHERE user_id= :username",
+                                  username=session["user_id"])
+            return render_template("my_patterns_loggedin.html", patterns)
+        else:
+            stitch_counts = request.form.get("stitch_counts")
+            return render_template("pattern.html", stitch_counts)
     else:
-        return render_template("my_patterns_loggedin.html")
+        return render_template("my_patterns.html")
 
+@app.route("/pattern_builder", methods=["GET", "POST"])
+def build_pattern():
+    """Create pattern from user input"""
+    if request.method == "POST":
 
-def errorhandler(e):
-    """Handle error"""
-    if not isinstance(e, HTTPException):
-        e = InternalServerError()
-    return apology(e.name, e.code)
+        #get info from form
+        yarn_weight = request.form.get("yarn_weight")
+        needle_size = request.form.get("needle_size")
+        needle_id_row = db.execute("SELECT id FROM needle_size WHERE :needle_size_us= :needle_size",
+                               needle_size="needle_size")
+        needle_id = needle_id_row["id"]
+        gauge_row= db.execute("SELECT stitches_per_inch FROM gauge WHERE needle_id= :needle_id", needle_id="needle_id")
+        gauge = gauge_row["stitches_per_inch"]
+        foot_length_st = (int(request.form.get("foot_length"))-3)/int(gauge)
+        foot_width_st = .75*int(request.form.get("foot_width"))/int(gauge)
+        cuff_length_st = int(request.form.get("cuff_length"))/int(gauge)
+        stitch_counts = {"cast_on": foot_width_st//2, "width": foot_width_st, "foot_length": foot_length_st,
+                        "cuff_length": cuff_length_st}
 
+        if session.get("user_id") is not None:
+            db.execute("INSERT INTO patterns (user_id, stitch_counts) VALUES (:u, :s)",
+                       u=session.get("user_id"), s=stitch_counts)
 
-# Listen for errors
-for code in default_exceptions:
-    app.errorhandler(code)(errorhandler)
+        return render_template("pattern.html", stitch_counts)
+    else:
+        return render_template("pattern_builder.html")

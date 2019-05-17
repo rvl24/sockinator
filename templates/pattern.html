@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block title %}
+  <<title>Pattern</title>
+{% endblock %}
+
+<!-- This is just a proof of concept, not a real knitting pattern. Darn. -->
+{% block main %}
+<main class="text-left">
+  <h2>Step 1<h2>
+  <p>Cast on {{ stitch_counts["cast_on"] }} stitches</p>
+  <h2>Step 2<h2>
+  <p>Increase after the first and before the last stitch until you have {stitch_counts["width"]} stitches </p>
+  <h2>Step 3<h2>
+  <p>Knit {{ stitch_counts["foot_length"] }} rows</p>
+  <h2>Step 4<h2>
+  <p>Turn the heel</p>
+  <h2>Step 5<h2>
+  <p>Knit {{ stitch_counts["cuff_length"] }} rows in rib</p>
+</main>
+{% endblock %}
